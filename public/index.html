@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CA Monitor - 合约地址监控</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0d0d0d; color: #fff; min-height: 100vh; }
+        
+        .navbar { background: #111; border-bottom: 1px solid #222; padding: 0 20px; height: 50px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+        .navbar-left { display: flex; align-items: center; gap: 20px; }
+        .logo { font-size: 18px; font-weight: 700; color: #00d4aa; display: flex; align-items: center; gap: 8px; }
+        .nav-tabs { display: flex; gap: 5px; }
+        .nav-tab { padding: 8px 16px; background: transparent; border: none; color: #888; font-size: 13px; cursor: pointer; border-radius: 4px; transition: all 0.2s; }
+        .nav-tab:hover { color: #fff; background: #1a1a1a; }
+        .nav-tab.active { color: #00d4aa; background: rgba(0, 212, 170, 0.1); }
+        .navbar-right { display: flex; align-items: center; gap: 12px; }
+        
+        .status-badge { display: flex; align-items: center; gap: 6px; padding: 5px 10px; background: #1a1a1a; border-radius: 4px; font-size: 11px; color: #888; }
+        .status-dot { width: 6px; height: 6px; border-radius: 50%; background: #ff4444; }
+        .status-dot.connected { background: #00d4aa; box-shadow: 0 0 8px #00d4aa; }
+        
+        .nav-btn { padding: 6px 12px; background: #1a1a1a; border: 1px solid #333; color: #888; font-size: 11px; cursor: pointer; border-radius: 4px; transition: all 0.2s; }
+        .nav-btn:hover { background: #222; color: #fff; border-color: #444; }
+        .nav-btn.danger:hover { background: rgba(255, 68, 68, 0.2); border-color: #ff4444; color: #ff4444; }
+        
+        .dropdown-wrapper { position: relative; }
+        .dropdown-btn { padding: 6px 12px; background: #1a1a1a; border: 1px solid #333; color: #fff; font-size: 11px; cursor: pointer; border-radius: 4px; display: flex; align-items: center; gap: 6px; }
+        .dropdown-btn:hover { background: #222; border-color: #444; }
+        .dropdown-btn .arrow { font-size: 8px; transition: transform 0.2s; }
+        .dropdown-btn.open .arrow { transform: rotate(180deg); }
+        
+        .dropdown-menu { position: absolute; top: 100%; left: 0; margin-top: 4px; background: #1a1a1a; border: 1px solid #333; border-radius: 8px; padding: 6px; min-width: 140px; z-index: 1000; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
+        .dropdown-menu.show { display: block; }
+        .dropdown-item { padding: 8px 12px; display: flex; align-items: center; gap: 10px; border-radius: 6px; cursor: pointer; color: #ccc; font-size: 12px; }
+        .dropdown-item:hover { background: #252525; color: #fff; }
+        .dropdown-item.selected { background: rgba(255, 204, 0, 0.15); border: 1px solid rgba(255, 204, 0, 0.5); color: #fc0; }
+        
+        .chain-icon { width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; background: #333; }
+        .chain-icon.sol { background: linear-gradient(135deg, #9945FF, #14F195); }
+        .chain-icon.bsc { background: #F3BA2F; color: #000; }
+        .chain-icon.eth { background: #627EEA; }
+        .chain-icon.tron { background: #FF0013; }
+        
+        .platform-icon { width: 20px; height: 20px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; }
+        .platform-icon.gmgn { background: #00d4aa; color: #000; }
+        .platform-icon.debot { background: #6366F1; color: #fff; }
+        .platform-icon.ave { background: #FF6B00; color: #fff; }
+        
+        .stats-bar { background: #111; border-bottom: 1px solid #222; padding: 10px 20px; display: flex; gap: 30px; }
+        .stat-item { display: flex; align-items: center; gap: 8px; }
+        .stat-label { color: #666; font-size: 11px; }
+        .stat-value { color: #00d4aa; font-size: 16px; font-weight: 700; }
+        .stat-value.evm { color: #667eea; }
+        .stat-value.sol { color: #14f195; }
+        .stat-value.tron { color: #ff4444; }
+        
+        .attention-popup { position: fixed; top: 60px; left: 50%; transform: translateX(-50%) translateY(-100px); background: #1a1a1a; border: 1px solid #fc0; border-radius: 8px; padding: 12px 20px; z-index: 2000; opacity: 0; pointer-events: none; transition: all 0.3s ease; box-shadow: 0 4px 20px rgba(255, 204, 0, 0.2); cursor: pointer; display: flex; align-items: center; gap: 12px; }
+        .attention-popup.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
+        .attention-popup .star { font-size: 20px; }
+        .attention-popup .user-name { font-size: 14px; font-weight: 600; color: #fc0; }
+        .attention-popup .token-info { font-size: 13px; color: #fff; }
+        .attention-popup .hint { font-size: 10px; color: #666; margin-left: 10px; }
+        
+        .main-content { padding: 10px 15px 15px 15px; }
+        .three-columns { display: flex; gap: 0; height: calc(100vh - 120px); }
+        .mc-column { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+        .column-divider { width: 1px; background: #333; margin: 0 10px; }
+        .mc-column-header { display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; background: #1a1a1a; border-radius: 6px 6px 0 0; border: 1px solid #252525; border-bottom: none; }
+        .mc-column-title { display: flex; flex-direction: column; gap: 2px; }
+        .mc-label { font-size: 13px; font-weight: 600; color: #fff; }
+        .mc-range { font-size: 10px; color: #00d4aa; }
+        .mc-config-btn { background: transparent; border: none; font-size: 14px; cursor: pointer; opacity: 0.5; }
+        .mc-config-btn:hover { opacity: 1; }
+        .mc-column-list { flex: 1; overflow-y: auto; background: #0f0f0f; border: 1px solid #252525; border-top: none; border-radius: 0 0 6px 6px; padding: 8px; scrollbar-width: none; -ms-overflow-style: none; }
+        .mc-column-list::-webkit-scrollbar { display: none; }
+        .mc-empty { text-align: center; color: #444; padding: 30px; font-size: 12px; }
+        
+        .card { background: #151515; border: 1px solid #252525; border-radius: 6px; padding: 10px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s; }
+        .card:hover { border-color: #00d4aa; background: #1a1a1a; }
+        .card.new { animation: cardHighlight 1.5s ease; }
+        @keyframes cardHighlight { 0% { border-color: #00d4aa; box-shadow: 0 0 15px rgba(0, 212, 170, 0.3); } 100% { border-color: #252525; } }
+        
+        .card-main { overflow: hidden; }
+        .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; }
+        .card-title-left { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+        .token-symbol { font-size: 14px; font-weight: 700; color: #fff; }
+        .chain-badge { padding: 2px 6px; font-size: 9px; border-radius: 2px; font-weight: 600; }
+        .chain-badge.evm { background: rgba(102, 126, 234, 0.2); color: #667eea; }
+        .chain-badge.sol { background: rgba(20, 241, 149, 0.2); color: #14f195; }
+        .chain-badge.tron { background: rgba(255, 68, 68, 0.2); color: #ff4444; }
+        .call-badge { padding: 2px 6px; font-size: 9px; border-radius: 2px; background: rgba(255, 204, 0, 0.2); color: #fc0; font-weight: 600; }
+        .card-title-right { display: flex; align-items: center; gap: 6px; }
+        .gain-badge { padding: 2px 6px; font-size: 10px; border-radius: 2px; font-weight: 600; }
+        .gain-badge.up { background: rgba(0, 212, 170, 0.2); color: #00d4aa; }
+        .gain-badge.down { background: rgba(255, 68, 68, 0.2); color: #ff4444; }
+        .mc-info { font-size: 12px; font-weight: 600; color: #00d4aa; }
+        .card-stats { display: flex; align-items: center; gap: 10px; font-size: 10px; color: #666; margin-bottom: 6px; }
+        .address-short { font-family: monospace; color: #888; cursor: pointer; }
+        .address-short:hover { color: #00d4aa; }
+        .card-time { margin-left: auto; }
+        .card-user-row { display: flex; align-items: center; justify-content: space-between; font-size: 11px; }
+        .card-user-info { display: flex; align-items: center; gap: 6px; color: #666; cursor: pointer; }
+        .card-user-info:hover { color: #00d4aa; }
+        .card-user-info .star { color: #fc0; }
+        .card-group { color: #555; font-size: 10px; }
+        
+        .card-users { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .caller-label { font-size: 9px; padding: 1px 4px; border-radius: 2px; margin-right: 3px; font-weight: 600; }
+        .caller-label { background: rgba(0, 212, 170, 0.2); color: #00d4aa; }
+        .caller-label.new { background: rgba(255, 165, 0, 0.2); color: #ffa500; }
+        .first-caller { color: #888; }
+        .last-caller { color: #ffa500; }
+        
+        .modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.8); display: none; align-items: center; justify-content: center; z-index: 1500; }
+        .modal.active { display: flex; }
+        .modal-box { background: #1a1a1a; border: 1px solid #333; border-radius: 8px; padding: 20px; min-width: 350px; max-width: 500px; }
+        .modal-title { font-size: 16px; font-weight: 600; margin-bottom: 15px; color: #fff; }
+        .modal-input { width: 100%; padding: 10px; background: #111; border: 1px solid #333; border-radius: 4px; color: #fff; font-size: 13px; margin-bottom: 10px; }
+        .modal-input.readonly { opacity: 0.6; }
+        .modal-btns { display: flex; gap: 10px; justify-content: flex-end; }
+        .modal-btn { padding: 8px 16px; border: none; border-radius: 4px; font-size: 12px; cursor: pointer; }
+        .modal-btn.cancel { background: #333; color: #888; }
+        .modal-btn.save { background: #00d4aa; color: #000; }
+        
+        .modal-checkbox { display: flex; align-items: center; gap: 8px; margin-bottom: 15px; font-size: 12px; color: #888; cursor: pointer; }
+        .modal-checkbox input { width: 16px; height: 16px; }
+        
+        .group-list { max-height: 400px; overflow-y: auto; margin-bottom: 15px; }
+        .group-item, .block-item { display: flex; align-items: center; justify-content: space-between; padding: 10px; background: #111; border-radius: 2px; margin-bottom: 6px; }
+        .group-item-info, .block-item-info { display: flex; align-items: center; gap: 10px; flex: 1; }
+        .group-item-name, .block-item-name { font-size: 13px; color: #fff; font-weight: 600; }
+        .group-item-id, .block-item-id { font-size: 10px; color: #555; font-family: monospace; }
+        .group-toggle { padding: 4px 10px; font-size: 10px; border: none; border-radius: 2px; cursor: pointer; }
+        .group-toggle.enabled { background: rgba(0, 212, 170, 0.2); color: #00d4aa; }
+        .group-toggle.disabled { background: rgba(255, 68, 68, 0.2); color: #ff4444; }
+        .unblock-btn { padding: 4px 10px; font-size: 10px; background: rgba(0, 212, 170, 0.2); border: none; color: #00d4aa; border-radius: 2px; cursor: pointer; }
+        
+        .mc-filter-form { margin-bottom: 15px; }
+        .mc-filter-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+        .mc-filter-row label { width: 100px; font-size: 12px; color: #888; }
+        
+        .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); padding: 10px 20px; background: #333; border-radius: 4px; font-size: 13px; z-index: 2000; opacity: 0; transition: opacity 0.3s; }
+        .toast.show { opacity: 1; }
+.toast.success { background: rgba(0, 212, 170, 0.9); color: #000; }
+        .toast.error { background: rgba(255, 68, 68, 0.9); color: #fff; }
+        
+        .view-toggle { display: flex; gap: 5px; margin-left: 20px; }
+        .view-btn { padding: 6px 14px; background: transparent; border: 1px solid #333; color: #888; font-size: 12px; cursor: pointer; border-radius: 4px; transition: all 0.2s; }
+        .view-btn:hover { background: #1a1a1a; color: #fff; }
+        .view-btn.active { background: rgba(0, 212, 170, 0.15); border-color: #00d4aa; color: #00d4aa; }
+        
+        .ranking-view { display: none; padding: 20px; height: calc(100vh - 120px); overflow-y: auto; }
+        .ranking-view.active { display: block; }
+        .contracts-view { display: block; }
+        .contracts-view.hidden { display: none; }
+        
+        .ranking-tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+        .ranking-tab { padding: 10px 24px; background: #1a1a1a; border: 1px solid #333; border-radius: 6px; color: #888; font-size: 14px; cursor: pointer; transition: all 0.2s; }
+        .ranking-tab:hover { background: #222; color: #fff; }
+        .ranking-tab.active { background: rgba(0, 212, 170, 0.15); border-color: #00d4aa; color: #00d4aa; }
+        
+        .ranking-list { background: #111; border: 1px solid #252525; border-radius: 8px; overflow: hidden; }
+        .ranking-item { display: flex; align-items: center; padding: 14px 16px; border-bottom: 1px solid #1a1a1a; transition: background 0.2s; }
+        .ranking-item:last-child { border-bottom: none; }
+        .ranking-item:hover { background: #1a1a1a; }
+        .rank-num { width: 40px; font-size: 18px; font-weight: 700; color: #555; text-align: center; }
+        .rank-num.top1 { color: #FFD700; }
+        .rank-num.top2 { color: #C0C0C0; }
+        .rank-num.top3 { color: #CD7F32; }
+        .rank-info { flex: 1; margin-left: 12px; }
+        .rank-name { font-size: 14px; font-weight: 600; color: #fff; margin-bottom: 2px; }
+        .rank-detail { font-size: 11px; color: #666; }
+        .rank-stat { text-align: right; }
+        .rank-value { font-size: 18px; font-weight: 700; color: #00d4aa; }
+        .rank-label { font-size: 10px; color: #666; }
+        .ranking-empty { text-align: center; padding: 60px 20px; color: #555; }
+        .ranking-empty .icon { font-size: 48px; margin-bottom: 10px; opacity: 0.3; }
+        
+        .ranking-item { cursor: pointer; }
+        .rank-follow-btn { padding: 4px 12px; background: rgba(0, 212, 170, 0.1); border: 1px solid #00d4aa; color: #00d4aa; font-size: 11px; border-radius: 4px; cursor: pointer; margin-left: 12px; white-space: nowrap; }
+        .rank-follow-btn:hover { background: rgba(0, 212, 170, 0.2); }
+        .rank-follow-btn.followed { background: rgba(255, 204, 0, 0.1); border-color: #fc0; color: #fc0; }
+        .rank-follow-btn.small { padding: 2px 8px; font-size: 10px; }
+        
+        .group-detail-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #111; border-radius: 6px; margin-bottom: 8px; }
+        .group-detail-token { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .group-detail-user { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #888; }
+        .group-detail-user span:first-child { cursor: pointer; }
+        .group-detail-user span:first-child:hover { color: #00d4aa; }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+<div class="navbar-left">
+            <div class="logo"><span>📊</span><span>CA Monitor</span></div>
+            <div class="view-toggle">
+                <button class="view-btn active" onclick="switchView('contracts')">合约</button>
+                <button class="view-btn" onclick="switchView('ranking')">排行</button>
+            </div>
+            <div class="nav-tabs" id="groupTabs"><button class="nav-tab active" data-filter="all" onclick="setGroupFilter('all')">全部</button></div>
+        </div>
+        <div class="navbar-right">
+            <div class="status-badge"><span class="status-dot" id="statusDot"></span><span id="statusText">连接中...</span></div>
+            
+            <button class="nav-btn" onclick="openGroupManager()">📋 群管理</button>
+            <button class="nav-btn" onclick="openBlockManager()">🚫 黑名单</button>
+            <button class="nav-btn" id="notifyBtn" onclick="toggleNotification()" title="点击开启/测试通知">🔔</button>
+        </div>
+    </nav>
+
+    <div class="stats-bar">
+        <div class="stat-item"><span class="stat-label">总计</span><span class="stat-value" id="totalCount">0</span></div>
+        <div class="stat-item"><span class="stat-label">EVM</span><span class="stat-value evm" id="evmCount">0</span></div>
+        <div class="stat-item"><span class="stat-label">SOL</span><span class="stat-value sol" id="solCount">0</span></div>
+        <div class="stat-item"><span class="stat-label">TRON</span><span class="stat-value tron" id="tronCount">0</span></div>
+        
+        <div style="margin-left:auto;display:flex;gap:10px;">
+            <div class="dropdown-wrapper">
+                <button class="dropdown-btn" id="chainDropdownBtn" onclick="toggleDropdown('chain')">
+                    <span id="chainIcon">🔗</span><span id="chainText">全部链</span><span class="arrow">▼</span>
+                </button>
+                <div class="dropdown-menu" id="chainDropdown">
+                    <div class="dropdown-item selected" data-value="all" onclick="selectChain('all')"><span class="chain-icon">🔗</span><span>全部链</span></div>
+                    <div class="dropdown-item" data-value="solana" onclick="selectChain('solana')"><span class="chain-icon sol">◎</span><span>Solana</span></div>
+                    <div class="dropdown-item" data-value="bsc" onclick="selectChain('bsc')"><span class="chain-icon bsc">₿</span><span>BSC</span></div>
+                    <div class="dropdown-item" data-value="base" onclick="selectChain('base')"><span class="chain-icon" style="background:#0052FF">Ⓑ</span><span>Base</span></div>
+                    <div class="dropdown-item" data-value="eth" onclick="selectChain('eth')"><span class="chain-icon eth">Ξ</span><span>ETH</span></div>
+                    <div class="dropdown-item" data-value="xlayer" onclick="selectChain('xlayer')"><span class="chain-icon" style="background:#000;border:1px solid #fc0">X</span><span>X Layer</span></div>
+                    <div class="dropdown-item" data-value="monad" onclick="selectChain('monad')"><span class="chain-icon" style="background:#8B5CF6">M</span><span>Monad</span></div>
+                    <div class="dropdown-item" data-value="tron" onclick="selectChain('tron')"><span class="chain-icon tron">T</span><span>Tron</span></div>
+                </div>
+            </div>
+            
+            <div class="dropdown-wrapper">
+                <button class="dropdown-btn" id="platformDropdownBtn" onclick="toggleDropdown('platform')">
+                    <span class="platform-icon gmgn" id="platformIcon">G</span><span id="platformText">GMGN</span><span class="arrow">▼</span>
+                </button>
+                <div class="dropdown-menu" id="platformDropdown">
+                    <div class="dropdown-item selected" data-value="gmgn" onclick="selectPlatform('gmgn')"><span class="platform-icon gmgn">G</span><span>GMGN</span></div>
+                    <div class="dropdown-item" data-value="debot" onclick="selectPlatform('debot')"><span class="platform-icon debot">D</span><span>Debot</span></div>
+                    <div class="dropdown-item" data-value="ave" onclick="selectPlatform('ave')"><span class="platform-icon ave">A</span><span>AVE</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<div class="main-content">
+        <div class="ranking-view" id="rankingView">
+            <div class="ranking-tabs">
+                <button class="ranking-tab active" onclick="switchRankingTab('groups')">群组排行</button>
+                <button class="ranking-tab" onclick="switchRankingTab('calls')">喊单排行</button>
+            </div>
+            <div class="ranking-list" id="rankingList"></div>
+        </div>
+        <div class="contracts-view" id="contractsView">
+        <div class="three-columns">
+            <div class="mc-column">
+                <div class="mc-column-header"><div class="mc-column-title"><span class="mc-label" id="col1Label">预设1</span><span class="mc-range" id="col1Range">0 - 100K</span></div><button class="mc-config-btn" onclick="editMcFilter('col1')">⚙️</button></div>
+                <div class="mc-column-list" id="col1List"></div>
+            </div>
+            <div class="column-divider"></div>
+            <div class="mc-column">
+                <div class="mc-column-header"><div class="mc-column-title"><span class="mc-label" id="col2Label">预设2</span><span class="mc-range" id="col2Range">100K - 1M</span></div><button class="mc-config-btn" onclick="editMcFilter('col2')">⚙️</button></div>
+                <div class="mc-column-list" id="col2List"></div>
+            </div>
+            <div class="column-divider"></div>
+            <div class="mc-column">
+                <div class="mc-column-header"><div class="mc-column-title"><span class="mc-label" id="col3Label">预设3</span><span class="mc-range" id="col3Range">1M+</span></div><button class="mc-config-btn" onclick="editMcFilter('col3')">⚙️</button></div>
+                <div class="mc-column-list" id="col3List"></div>
+</div>
+        </div>
+        </div>
+    </div>
+
+    <div class="attention-popup" id="attentionPopup" onclick="jumpToAttentionToken()">
+        <span class="star">⭐</span>
+        <span class="user-name" id="attentionUserName"></span>
+        <span class="token-info" id="attentionTokenInfo"></span>
+        <span class="hint">点击查看 →</span>
+    </div>
+
+    <div class="modal" id="mcFilterModal">
+        <div class="modal-box">
+            <div class="modal-title" id="mcFilterTitle">设置市值范围</div>
+            <div class="mc-filter-form">
+                <div class="mc-filter-row"><label>名称:</label><input type="text" class="modal-input" id="mcFilterLabel"></div>
+                <div class="mc-filter-row"><label>最小市值 ($):</label><input type="number" class="modal-input" id="mcFilterMin"></div>
+                <div class="mc-filter-row"><label>最大市值 ($):</label><input type="number" class="modal-input" id="mcFilterMax" placeholder="0表示无上限"></div>
+            </div>
+            <div class="modal-btns"><button class="modal-btn cancel" onclick="closeMcFilterModal()">取消</button><button class="modal-btn save" onclick="saveMcFilter()">保存</button></div>
+        </div>
+    </div>
+
+    <div class="modal" id="remarkModal">
+        <div class="modal-box">
+            <div class="modal-title" id="remarkTitle">编辑用户</div>
+            <input type="text" class="modal-input readonly" id="remarkId" readonly>
+            <input type="text" class="modal-input" id="remarkInput" placeholder="输入备注...">
+            <label class="modal-checkbox"><input type="checkbox" id="specialAttentionCheck"> ⭐ 特别关注此用户</label>
+            <label class="modal-checkbox"><input type="checkbox" id="blockUserCheck"> 🚫 拉黑此用户</label>
+            <div class="modal-btns"><button class="modal-btn cancel" onclick="closeRemarkModal()">取消</button><button class="modal-btn save" onclick="saveRemark()">保存</button></div>
+        </div>
+    </div>
+
+    <div class="modal" id="groupRemarkModal">
+        <div class="modal-box">
+            <div class="modal-title" id="groupRemarkTitle">编辑群备注</div>
+            <input type="text" class="modal-input readonly" id="groupRemarkId" readonly>
+            <input type="text" class="modal-input" id="groupRemarkInput" placeholder="输入群备注...">
+            <div class="modal-btns"><button class="modal-btn cancel" onclick="closeGroupRemarkModal()">取消</button><button class="modal-btn save" onclick="saveGroupRemark()">保存</button></div>
+        </div>
+    </div>
+
+    <div class="modal" id="groupManagerModal">
+        <div class="modal-box" style="max-width:600px">
+            <div class="modal-title">📋 已绑定群聊</div>
+            <div style="font-size:11px;color:#555;margin-bottom:15px">
+                命令 (TG/WX通用): <span style="color:#00d4aa">/bangding</span> 绑定 | <span style="color:#ff4444">/jiebang</span> 解绑
+            </div>
+            <div class="group-list" id="groupList"></div>
+            <div class="modal-btns"><button class="modal-btn cancel" onclick="closeGroupManager()">关闭</button></div>
+        </div>
+    </div>
+
+<div class="modal" id="blockManagerModal">
+        <div class="modal-box" style="max-width:600px">
+            <div class="modal-title">🚫 黑名单</div>
+            <div style="font-size:11px;color:#555;margin-bottom:15px">已拉黑的用户不会显示在CA列表中</div>
+            <div class="group-list" id="blockList"></div>
+            <div class="modal-btns"><button class="modal-btn cancel" onclick="closeBlockManager()">关闭</button></div>
+        </div>
+    </div>
+
+    <div class="modal" id="groupDetailModal">
+        <div class="modal-box" style="max-width:650px">
+            <div class="modal-title" id="groupDetailTitle">群组详情</div>
+            <div style="font-size:11px;color:#555;margin-bottom:15px">该群组发送的所有合约</div>
+            <div class="group-list" id="groupDetailList" style="max-height:450px"></div>
+            <div class="modal-btns"><button class="modal-btn cancel" onclick="closeGroupDetail()">关闭</button></div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+let contracts = [], boundGroups = {};
+        let currentGroupFilter = 'all', currentChainFilter = 'all';
+        let eventSource = null, currentEditColumn = null, currentRemarkUserId = null, currentRemarkUserNick = null;
+        let currentRemarkGroupId = null, currentRemarkGroupName = null;
+        let attentionPopupData = null;
+        let audioContext = null;
+        let notificationPermission = 'Notification' in window ? Notification.permission : 'denied';
+        let currentView = 'contracts', currentRankingTab = 'groups';
+        let groupRankings = [], callRankings = [];
+
+        // 初始化音频上下文
+        function initAudio() {
+            if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioContext.state === 'suspended') audioContext.resume();
+        }
+
+        // 普通提示音（短促）
+        function playNormalSound() {
+            try {
+                initAudio();
+                const osc = audioContext.createOscillator();
+                const gain = audioContext.createGain();
+                osc.connect(gain); gain.connect(audioContext.destination);
+                osc.frequency.value = 800; osc.type = 'sine';
+                gain.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+                osc.start(audioContext.currentTime); osc.stop(audioContext.currentTime + 0.2);
+            } catch (e) { console.error('播放提示音失败:', e); }
+        }
+
+        // 特别关注提示音（双音，更响亮更明显）
+        function playSpecialSound() {
+            try {
+                initAudio();
+                // 第一个音（高亢）
+                const osc1 = audioContext.createOscillator();
+                const gain1 = audioContext.createGain();
+                osc1.connect(gain1); gain1.connect(audioContext.destination);
+                osc1.frequency.value = 880; osc1.type = 'sine';
+                gain1.gain.setValueAtTime(0.5, audioContext.currentTime);
+                gain1.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.15);
+                osc1.start(audioContext.currentTime); osc1.stop(audioContext.currentTime + 0.15);
+                // 第二个音（更高，延续）
+                const osc2 = audioContext.createOscillator();
+                const gain2 = audioContext.createGain();
+                osc2.connect(gain2); gain2.connect(audioContext.destination);
+                osc2.frequency.value = 1100; osc2.type = 'sine';
+                gain2.gain.setValueAtTime(0.5, audioContext.currentTime + 0.15);
+                gain2.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.4);
+                osc2.start(audioContext.currentTime + 0.15); osc2.stop(audioContext.currentTime + 0.4);
+            } catch (e) { console.error('播放特别提示音失败:', e); }
+        }
+
+        // 请求浏览器通知权限
+        function requestNotificationPermission() {
+            if ('Notification' in window && Notification.permission === 'default') {
+                Notification.requestPermission().then(p => {
+                    notificationPermission = p;
+                    if (p === 'granted') showToast('✅ 通知已开启', 'success');
+                });
+            }
+        }
+
+        // 发送浏览器通知
+        function sendBrowserNotification(title, body, onClick) {
+            if (notificationPermission !== 'granted') return;
+            try {
+                const notification = new Notification(title, { body, icon: '📊', tag: 'ca-' + Date.now() });
+                notification.onclick = () => { window.focus(); if (onClick) onClick(); notification.close(); };
+                setTimeout(() => notification.close(), 6000);
+            } catch (e) {}
+        }
+
+        // 特别关注通知（声音+浏览器通知+弹窗）- 传入实际触发的用户信息
+        function notifySpecialAttention(contract, triggerUserId, triggerUserNick) {
+            playSpecialSound();
+            const userName = localData.userRemarks[triggerUserId] || triggerUserNick || '关注用户';
+            const tokenName = contract.tokenSymbol || '未知代币';
+            sendBrowserNotification(
+                `⭐ ${userName} 发送了新合约`,
+                `${tokenName} / ${contract.detectedChain || contract.chain || 'Unknown'}`,
+                () => window.open(getJumpLink(contract.type, contract.detectedChain, contract.address), '_blank')
+            );
+        }
+
+        // 切换/测试通知
+        function toggleNotification() {
+            if (notificationPermission !== 'granted') {
+                requestNotificationPermission();
+                return;
+            }
+            // 已开启，测试提示音
+            playSpecialSound();
+            sendBrowserNotification('🔔 通知测试', '通知功能已开启，关注的人发CA时会收到提醒');
+            showToast('✅ 通知测试成功', 'success');
+        }
+        
+        let localData = {
+            specialAttention: {},
+            blockedUsers: {},
+            userRemarks: {},
+            groupRemarks: {},
+            enabledGroups: {},
+            jumpPlatform: 'gmgn',
+            mcFilters: {
+                col1: { min: 0, max: 100000, label: '预设1' },
+                col2: { min: 100000, max: 1000000, label: '预设2' },
+                col3: { min: 1000000, max: 0, label: '预设3' }
+            }
+        };
+
+        const platformLinks = {
+            gmgn: {
+                name: 'GMGN',
+                getLink: (type, chain, addr) => {
+                    const chainMap = { 'solana': 'sol', 'bsc': 'bsc', 'base': 'base', 'eth': 'eth', 'monad': 'monad', 'tron': 'tron' };
+                    let c = type === 'SOL' ? 'sol' : (type === 'TRON' ? 'tron' : (chain || 'bsc'));
+                    return `https://gmgn.ai/${chainMap[c] || c}/token/yaqTvGCf_${addr}`;
+                }
+            },
+            debot: {
+                name: 'Debot',
+                getLink: (type, chain, addr) => {
+                    const chainMap = { 'solana': 'solana', 'bsc': 'bsc', 'base': 'base', 'eth': 'eth', 'monad': 'monad', 'xlayer': 'xlayer' };
+                    let c = type === 'SOL' ? 'solana' : (chain || 'bsc');
+                    if (type === 'TRON') c = 'solana';
+                    return `https://debot.ai/token/${chainMap[c] || c}/XRZeth_${addr}`;
+                }
+            },
+            ave: {
+                name: 'AVE',
+                getLink: (type, chain, addr) => {
+                    const chainMap = { 'solana': 'solana', 'bsc': 'bsc', 'base': 'base', 'eth': 'ethereum', 'monad': 'monad', 'tron': 'tron' };
+                    let c = type === 'SOL' ? 'solana' : (type === 'TRON' ? 'tron' : (chain || 'bsc'));
+                    return `https://ave.ai/token/${addr}-${chainMap[c] || c}?ref={0xaodi9981}`;
+                }
+            }
+        };
+
+        function loadLocalData() { try { const s = localStorage.getItem('ca_monitor_v4'); if (s) localData = { ...localData, ...JSON.parse(s) }; } catch (e) {} }
+        function saveLocalData() { try { localStorage.setItem('ca_monitor_v4', JSON.stringify(localData)); } catch (e) {} }
+        function formatMarketCap(n) { n = parseFloat(n); if (isNaN(n) || n === 0) return '-'; if (n >= 1e9) return '$' + (n / 1e9).toFixed(2) + 'B'; if (n >= 1e6) return '$' + (n / 1e6).toFixed(2) + 'M'; if (n >= 1e3) return '$' + (n / 1e3).toFixed(2) + 'K'; return '$' + n.toFixed(2); }
+        function formatMcRange(min, max) { return `${formatMarketCap(min).replace('$', '')} - ${max === 0 ? '∞' : formatMarketCap(max).replace('$', '')}`; }
+        function getJumpLink(type, chain, address) { return (platformLinks[localData.jumpPlatform] || platformLinks.gmgn).getLink(type, chain, address); }
+        function showToast(msg, type = '') { const t = document.getElementById('toast'); t.textContent = msg; t.className = 'toast show ' + type; setTimeout(() => t.className = 'toast', 2000); }
+
+        function toggleDropdown(type) {
+            const menu = document.getElementById(type + 'Dropdown'), btn = document.getElementById(type + 'DropdownBtn');
+            const isOpen = menu.classList.contains('show');
+            document.querySelectorAll('.dropdown-menu').forEach(m => m.classList.remove('show'));
+            document.querySelectorAll('.dropdown-btn').forEach(b => b.classList.remove('open'));
+            if (!isOpen) { menu.classList.add('show'); btn.classList.add('open'); }
+        }
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.dropdown-wrapper')) {
+                document.querySelectorAll('.dropdown-menu').forEach(m => m.classList.remove('show'));
+                document.querySelectorAll('.dropdown-btn').forEach(b => b.classList.remove('open'));
+            }
+        });
+
+        function selectChain(value) {
+            currentChainFilter = value;
+            document.querySelectorAll('#chainDropdown .dropdown-item').forEach(i => i.classList.toggle('selected', i.dataset.value === value));
+            document.getElementById('chainText').textContent = document.querySelector(`#chainDropdown .dropdown-item[data-value="${value}"] span:last-child`)?.textContent || '全部链';
+            document.getElementById('chainDropdown').classList.remove('show');
+            document.getElementById('chainDropdownBtn').classList.remove('open');
+            renderContracts();
+        }
+
+        function selectPlatform(value) {
+            localData.jumpPlatform = value; saveLocalData();
+            document.querySelectorAll('#platformDropdown .dropdown-item').forEach(i => i.classList.toggle('selected', i.dataset.value === value));
+            document.getElementById('platformText').textContent = platformLinks[value]?.name || 'GMGN';
+            const icon = document.getElementById('platformIcon');
+            icon.className = 'platform-icon ' + value; icon.textContent = value === 'gmgn' ? 'G' : (value === 'debot' ? 'D' : 'A');
+            document.getElementById('platformDropdown').classList.remove('show');
+            document.getElementById('platformDropdownBtn').classList.remove('open');
+            showToast(`切换到 ${platformLinks[value]?.name}`, 'success');
+        }
+
+        function setGroupFilter(filter) {
+            currentGroupFilter = filter;
+            document.querySelectorAll('.nav-tab').forEach(t => t.classList.toggle('active', t.dataset.filter === filter));
+            renderContracts();
+        }
+
+        function showAttentionPopup(contract, triggerUserId, triggerUserNick) {
+            attentionPopupData = contract;
+            const userName = localData.userRemarks[triggerUserId] || triggerUserNick || '关注用户';
+            document.getElementById('attentionUserName').textContent = userName;
+            document.getElementById('attentionTokenInfo').textContent = contract.tokenSymbol ? `发现: ${contract.tokenSymbol}` : '发现新代币';
+            document.getElementById('attentionPopup').classList.add('show');
+            setTimeout(() => document.getElementById('attentionPopup').classList.remove('show'), 2000);
+        }
+
+        function jumpToAttentionToken() {
+            if (attentionPopupData) window.open(getJumpLink(attentionPopupData.type, attentionPopupData.detectedChain, attentionPopupData.address), '_blank');
+            document.getElementById('attentionPopup').classList.remove('show');
+        }
+
+        function connectSSE() {
+            if (eventSource) eventSource.close();
+            eventSource = new EventSource('/api/events');
+            eventSource.onopen = () => { document.getElementById('statusDot').classList.add('connected'); document.getElementById('statusText').textContent = '已连接'; };
+            eventSource.addEventListener('sourceStatus', (e) => { console.log('群组状态:', JSON.parse(e.data)); });
+            eventSource.addEventListener('newContract', (e) => {
+                console.log('📥 收到 newContract:', e.data);
+                const c = JSON.parse(e.data);
+                const idx = contracts.findIndex(x => x.address === c.address);
+                if (idx >= 0) contracts.splice(idx, 1);
+                contracts.unshift(c); updateStats();
+                
+                const isGroupEnabled = (c.sentGroups || [c.fromId]).some(g => boundGroups[g] && localData.enabledGroups[g]);
+                renderContracts(isGroupEnabled);
+                if (!isGroupEnabled) return;
+                
+                const isSpecial = !!localData.specialAttention[c.finalFromId];
+                if (isSpecial) {
+                    notifySpecialAttention(c, c.finalFromId, c.userNick);
+                    showAttentionPopup(c, c.finalFromId, c.userNick);
+                } else {
+                    playNormalSound();
+                }
+            });
+            eventSource.addEventListener('contractUpdated', (e) => {
+                console.log('📥 收到 contractUpdated:', e.data);
+                const c = JSON.parse(e.data);
+                const idx = contracts.findIndex(x => x.address === c.address);
+                const countChanged = idx >= 0 && c.sendCount > contracts[idx].sendCount;
+                if (idx >= 0) {
+                    contracts.splice(idx, 1);
+                    contracts.unshift(c);
+                }
+                updateStats();
+                
+                const isGroupEnabled = (c.sentGroups || [c.fromId]).some(g => boundGroups[g] && localData.enabledGroups[g]);
+                renderContracts(countChanged && isGroupEnabled);
+                
+                if (countChanged && isGroupEnabled) {
+                    const lastUserId = c.lastUserId || c.finalFromId;
+                    const lastUserNick = c.lastUserNick || c.userNick;
+                    const isLastUserAtt = localData.specialAttention[lastUserId];
+                    
+                    if (isLastUserAtt) {
+                        notifySpecialAttention(c, lastUserId, lastUserNick);
+                        showAttentionPopup(c, lastUserId, lastUserNick);
+                    } else {
+                        playNormalSound();
+                    }
+                }
+            });
+            eventSource.addEventListener('contractDeleted', (e) => { contracts = contracts.filter(c => c.id !== JSON.parse(e.data).id); updateStats(); renderContracts(); });
+            eventSource.addEventListener('groupBound', (e) => { const d = JSON.parse(e.data); boundGroups[d.id] = d; renderGroupTabs(); showToast(`新群已绑定: ${d.name}`, 'success'); });
+            eventSource.addEventListener('groupUnbound', (e) => { delete boundGroups[JSON.parse(e.data).id]; renderGroupTabs(); if (currentGroupFilter === JSON.parse(e.data).id) setGroupFilter('all'); });
+            eventSource.onerror = () => { document.getElementById('statusDot').classList.remove('connected'); document.getElementById('statusText').textContent = '已断开'; setTimeout(connectSSE, 3000); };
+        }
+
+        async function loadContracts() { try { const r = await fetch('/api/contracts'); const d = await r.json(); if (d.code === 200) { contracts = d.data || []; updateStats(); renderContracts(); } } catch (e) {} }
+        async function loadBoundGroups() { try { const r = await fetch('/api/monitored-groups'); const d = await r.json(); if (d.code === 200) { boundGroups = d.data || {}; renderGroupTabs(); } } catch (e) {} }
+
+        function renderGroupTabs() {
+            const enabled = Object.entries(boundGroups).filter(([id]) => localData.enabledGroups[id]);
+            let html = `<button class="nav-tab ${currentGroupFilter === 'all' ? 'active' : ''}" data-filter="all" onclick="setGroupFilter('all')">全部</button>`;
+            enabled.forEach(([id, g]) => { html += `<button class="nav-tab ${currentGroupFilter === id ? 'active' : ''}" data-filter="${id}" onclick="setGroupFilter('${id}')">${localData.groupRemarks[id] || g.name || id.slice(0, 8)}</button>`; });
+            document.getElementById('groupTabs').innerHTML = html;
+        }
+
+        function updateStats() {
+            const f = c => !localData.blockedUsers[c.finalFromId];
+            document.getElementById('totalCount').textContent = contracts.filter(f).length;
+            document.getElementById('evmCount').textContent = contracts.filter(c => c.type === 'EVM' && f(c)).length;
+            document.getElementById('solCount').textContent = contracts.filter(c => c.type === 'SOL' && f(c)).length;
+            document.getElementById('tronCount').textContent = contracts.filter(c => c.type === 'TRON' && f(c)).length;
+        }
+
+        function updateColumnHeaders() {
+            ['col1', 'col2', 'col3'].forEach(col => {
+                const f = localData.mcFilters[col];
+                document.getElementById(col + 'Label').textContent = f.label;
+                document.getElementById(col + 'Range').textContent = formatMcRange(f.min, f.max);
+            });
+        }
+
+        function renderContracts(isNew = false) {
+            let filtered = contracts.filter(c => !localData.blockedUsers[c.finalFromId]);
+            const boundIds = Object.keys(boundGroups);
+            if (boundIds.length > 0) filtered = filtered.filter(c => c.fromType !== 2 || (c.sentGroups || [c.fromId]).some(g => boundGroups[g] && localData.enabledGroups[g]));
+            if (currentGroupFilter !== 'all') filtered = filtered.filter(c => (c.sentGroups || [c.fromId]).includes(currentGroupFilter));
+            if (currentChainFilter !== 'all') filtered = filtered.filter(c => c.detectedChain === currentChainFilter || (currentChainFilter === 'solana' && c.type === 'SOL') || (currentChainFilter === 'tron' && c.type === 'TRON') || (c.type === 'EVM' && ['bsc', 'eth', 'base', 'xlayer', 'monad'].includes(currentChainFilter) && c.detectedChain === currentChainFilter));
+
+            const mf = localData.mcFilters, col1 = [], col2 = [], col3 = [];
+            filtered.forEach(c => {
+                const mc = parseFloat(c.marketCap) || 0;
+                if (mc >= mf.col1.min && (mf.col1.max === 0 || mc < mf.col1.max)) col1.push(c);
+                else if (mc >= mf.col2.min && (mf.col2.max === 0 || mc < mf.col2.max)) col2.push(c);
+                else if (mc >= mf.col3.min && (mf.col3.max === 0 || mc < mf.col3.max)) col3.push(c);
+                else if (mc === 0) col1.push(c);
+            });
+
+            updateColumnHeaders();
+            document.getElementById('col1List').innerHTML = renderCards(col1, isNew);
+            document.getElementById('col2List').innerHTML = renderCards(col2, isNew);
+            document.getElementById('col3List').innerHTML = renderCards(col3, isNew);
+        }
+
+        function renderCards(data, isNew) {
+            if (!data.length) return '<div class="mc-empty">暂无数据</div>';
+            return data.slice(0, 50).map((c, i) => {
+                // 首Call的人 - 只使用本地数据判断关注状态
+                const isFirstAtt = !!localData.specialAttention[c.finalFromId];
+                const firstNick = localData.userRemarks[c.finalFromId] || c.userRemark || c.userNick || c.finalFromId?.slice(0, 10);
+                
+                // 最新发送的人（如果和首Call不同且sendCount>1才显示）
+                const hasLastSender = c.lastUserId && c.lastUserId !== c.finalFromId && c.sendCount > 1;
+                const isLastAtt = hasLastSender && !!localData.specialAttention[c.lastUserId];
+                const lastNick = hasLastSender ? (localData.userRemarks[c.lastUserId] || c.lastUserNick || c.lastUserId?.slice(0, 10)) : '';
+                
+                const displayGroup = localData.groupRemarks[c.fromId] || c.groupRemark || c.groupName || '';
+                const jumpLink = getJumpLink(c.type, c.detectedChain, c.address);
+                const displayAddr = c.type === 'EVM' ? '0x' + c.address.slice(2).toUpperCase() : c.address;
+                const shortAddr = displayAddr.slice(0, 6) + '...' + displayAddr.slice(-4);
+                const time = c.date?.split(' ')[1] || '';
+                const tokenSymbol = c.tokenSymbol ? (c.tokenSymbol.length > 8 ? c.tokenSymbol.slice(0, 6) + '..' : c.tokenSymbol) : '';
+                const mc = formatMarketCap(c.marketCap), holders = c.holders || 0, sendCount = c.sendCount || 1;
+                let gainText = '', gainClass = '';
+                if (c.initialMarketCap && c.marketCap && parseFloat(c.initialMarketCap) > 0) {
+                    const gain = parseFloat(c.marketCap) / parseFloat(c.initialMarketCap);
+                    gainText = gain.toFixed(1) + 'x'; gainClass = gain >= 1 ? 'up' : 'down';
+                }
+                return `<div class="card ${isNew && i === 0 ? 'new' : ''}" onclick="window.open('${jumpLink}', '_blank')">
+                    <div class="card-main">
+                        <div class="card-header">
+                            <div class="card-title-left">
+                                <span class="token-symbol">${tokenSymbol || shortAddr}</span>
+                                <span class="chain-badge ${c.type.toLowerCase()}">${c.type}</span>
+                                ${sendCount > 1 ? `<span class="call-badge">${sendCount}call</span>` : ''}
+                            </div>
+                            <div class="card-title-right">${gainText ? `<span class="gain-badge ${gainClass}">${gainText}</span>` : ''}<span class="mc-info">${mc}</span></div>
+                        </div>
+                        <div class="card-stats">
+                            <span class="address-short" onclick="event.stopPropagation(); navigator.clipboard.writeText('${c.address}').then(()=>showToast('已复制','success'))">${shortAddr}</span>
+                            <span>👥${holders.toLocaleString()}</span>
+                            <span class="card-time">${time}</span>
+                        </div>
+                        <div class="card-user-row">
+                            <div class="card-users">
+                                <span class="card-user-info first-caller" onclick="event.stopPropagation(); openRemarkModal('${c.finalFromId}', '${(c.userNick || '').replace(/'/g, "\\'")}')" title="首Call">
+                                    ${isFirstAtt ? '<span class="star">⭐</span>' : ''}<span class="caller-label">首</span>${firstNick}
+                                </span>
+                                ${hasLastSender ? `<span class="card-user-info last-caller" onclick="event.stopPropagation(); openRemarkModal('${c.lastUserId}', '${(c.lastUserNick || '').replace(/'/g, "\\'")}')" title="最新发送">${isLastAtt ? '<span class="star">⭐</span>' : ''}<span class="caller-label new">新</span>${lastNick}</span>` : ''}
+                            </div>
+                            <span class="card-group" onclick="event.stopPropagation(); openGroupRemarkModal('${c.fromId}', '${(c.groupName || '').replace(/'/g, "\\'")}')">${displayGroup}</span>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function openRemarkModal(userId, userNick) {
+            currentRemarkUserId = userId; currentRemarkUserNick = userNick;
+            document.getElementById('remarkId').value = userId;
+            document.getElementById('remarkInput').value = localData.userRemarks[userId] || '';
+            document.getElementById('specialAttentionCheck').checked = !!localData.specialAttention[userId];
+            document.getElementById('blockUserCheck').checked = !!localData.blockedUsers[userId];
+            document.getElementById('remarkTitle').textContent = `编辑用户: ${userNick || userId}`;
+            document.getElementById('remarkModal').classList.add('active');
+        }
+        function closeRemarkModal() { document.getElementById('remarkModal').classList.remove('active'); }
+
+        function saveRemark() {
+            const remark = document.getElementById('remarkInput').value.trim();
+            const isSpecial = document.getElementById('specialAttentionCheck').checked;
+            const isBlocked = document.getElementById('blockUserCheck').checked;
+            
+            if (remark) localData.userRemarks[currentRemarkUserId] = remark;
+            else delete localData.userRemarks[currentRemarkUserId];
+            
+            if (isSpecial) localData.specialAttention[currentRemarkUserId] = true;
+            else delete localData.specialAttention[currentRemarkUserId];
+            
+            if (isBlocked) localData.blockedUsers[currentRemarkUserId] = { nick: currentRemarkUserNick, time: new Date().toLocaleString('zh-CN') };
+            else delete localData.blockedUsers[currentRemarkUserId];
+            
+            saveLocalData();
+            closeRemarkModal(); renderContracts(); updateStats(); showToast('保存成功', 'success');
+        }
+
+        function openGroupRemarkModal(groupId, groupName) {
+            currentRemarkGroupId = groupId; currentRemarkGroupName = groupName;
+            document.getElementById('groupRemarkId').value = groupId;
+            document.getElementById('groupRemarkInput').value = localData.groupRemarks[groupId] || '';
+            document.getElementById('groupRemarkTitle').textContent = `编辑群备注: ${groupName || groupId}`;
+            document.getElementById('groupRemarkModal').classList.add('active');
+        }
+        function closeGroupRemarkModal() { document.getElementById('groupRemarkModal').classList.remove('active'); }
+
+        function saveGroupRemark() {
+            const remark = document.getElementById('groupRemarkInput').value.trim();
+            if (remark) localData.groupRemarks[currentRemarkGroupId] = remark;
+            else delete localData.groupRemarks[currentRemarkGroupId];
+            saveLocalData();
+            closeGroupRemarkModal(); renderContracts(); renderGroupTabs(); showToast('保存成功', 'success');
+        }
+
+        function editMcFilter(col) {
+            currentEditColumn = col;
+            const f = localData.mcFilters[col];
+            document.getElementById('mcFilterTitle').textContent = `设置 ${f.label} 市值范围`;
+            document.getElementById('mcFilterLabel').value = f.label;
+            document.getElementById('mcFilterMin').value = f.min;
+            document.getElementById('mcFilterMax').value = f.max;
+            document.getElementById('mcFilterModal').classList.add('active');
+        }
+        function closeMcFilterModal() { document.getElementById('mcFilterModal').classList.remove('active'); }
+        function saveMcFilter() {
+            localData.mcFilters[currentEditColumn] = { label: document.getElementById('mcFilterLabel').value || '预设', min: parseInt(document.getElementById('mcFilterMin').value) || 0, max: parseInt(document.getElementById('mcFilterMax').value) || 0 };
+            saveLocalData(); closeMcFilterModal(); renderContracts(); showToast('保存成功', 'success');
+        }
+
+        function openGroupManager() { renderGroupList(); document.getElementById('groupManagerModal').classList.add('active'); }
+        function closeGroupManager() { document.getElementById('groupManagerModal').classList.remove('active'); }
+        function renderGroupList() {
+            const groups = Object.entries(boundGroups);
+            if (!groups.length) { document.getElementById('groupList').innerHTML = '<div style="text-align:center;color:#555;padding:30px"><div style="font-size:32px;opacity:0.3">📭</div><div>暂无绑定群聊</div></div>'; return; }
+            document.getElementById('groupList').innerHTML = groups.map(([id, g]) => {
+                const platformIcon = g.platform === 'wechat' ? '<span style="color:#07c160">微信</span>' : '<span style="color:#00d4aa">TG</span>';
+                return `<div class="group-item"><div class="group-item-info"><div><div class="group-item-name">${platformIcon} ${localData.groupRemarks[id] || g.name || id}</div><div class="group-item-id">${id}</div></div></div><button class="group-toggle ${localData.enabledGroups[id] ? 'enabled' : 'disabled'}" onclick="toggleGroup('${id}')">${localData.enabledGroups[id] ? '监听中' : '未监听'}</button></div>`;
+            }).join('');
+        }
+        function toggleGroup(id) { localData.enabledGroups[id] = !localData.enabledGroups[id]; saveLocalData(); renderGroupList(); renderGroupTabs(); renderContracts(); }
+
+        function openBlockManager() { renderBlockList(); document.getElementById('blockManagerModal').classList.add('active'); }
+        function closeBlockManager() { document.getElementById('blockManagerModal').classList.remove('active'); }
+        function renderBlockList() {
+            const list = Object.entries(localData.blockedUsers);
+            if (!list.length) { document.getElementById('blockList').innerHTML = '<div style="text-align:center;color:#555;padding:30px"><div style="font-size:32px;opacity:0.3">✨</div><div>暂无拉黑用户</div></div>'; return; }
+            document.getElementById('blockList').innerHTML = list.map(([id, info]) => `<div class="block-item"><div class="block-item-info"><div><div class="block-item-name">${info.nick || id}</div><div class="block-item-id">${id}</div>${info.time ? `<div class="block-item-id">拉黑于: ${info.time}</div>` : ''}</div></div><button class="unblock-btn" onclick="unblockUser('${id}')">取消拉黑</button></div>`).join('');
+        }
+        function unblockUser(id) {
+            delete localData.blockedUsers[id];
+            saveLocalData();
+            renderBlockList(); renderContracts(); updateStats(); showToast('已取消拉黑', 'success');
+        }
+
+document.querySelectorAll('.modal').forEach(m => { m.onclick = (e) => { if (e.target === m) m.classList.remove('active'); }; });
+
+        function switchView(view) {
+            currentView = view;
+            document.querySelectorAll('.view-btn').forEach(b => b.classList.toggle('active', b.textContent.includes(view === 'contracts' ? '合约' : '排行')));
+            document.getElementById('contractsView').classList.toggle('hidden', view !== 'contracts');
+            document.getElementById('rankingView').classList.toggle('active', view === 'ranking');
+            document.getElementById('groupTabs').style.display = view === 'contracts' ? 'flex' : 'none';
+            if (view === 'ranking') loadRankings();
+        }
+
+        function switchRankingTab(tab) {
+            currentRankingTab = tab;
+            document.querySelectorAll('.ranking-tab').forEach(t => t.classList.toggle('active', t.textContent.includes(tab === 'groups' ? '群组' : '喊单')));
+            renderRankings();
+        }
+
+        async function loadRankings() {
+            try {
+                const [gr, cr] = await Promise.all([
+                    fetch('/api/ranking/groups').then(r => r.json()),
+                    fetch('/api/ranking/calls').then(r => r.json())
+                ]);
+                groupRankings = gr.code === 200 ? gr.data : [];
+                callRankings = cr.code === 200 ? cr.data : [];
+                renderRankings();
+            } catch (e) { console.error('加载排行榜失败:', e); }
+        }
+
+        function renderRankings() {
+            const list = document.getElementById('rankingList');
+            const data = currentRankingTab === 'groups' ? groupRankings : callRankings;
+            
+            if (!data || !data.length) {
+                list.innerHTML = '<div class="ranking-empty"><div class="icon">📊</div><div>暂无排行数据</div><div style="font-size:11px;margin-top:8px">数据将在有合约监控后生成</div></div>';
+                return;
+            }
+            
+            if (currentRankingTab === 'groups') {
+                list.innerHTML = data.map((g, i) => `
+                    <div class="ranking-item" onclick="openGroupDetail('${g.groupId}', '${(g.groupName || '').replace(/'/g, "\\'")}')">
+                        <div class="rank-num ${i < 3 ? 'top' + (i + 1) : ''}">${i < 3 ? ['🥇', '🥈', '🥉'][i] : '#' + (i + 1)}</div>
+                        <div class="rank-info">
+                            <div class="rank-name">${localData.groupRemarks[g.groupId] || g.groupName || g.groupId}</div>
+                            <div class="rank-detail">${g.totalCalls} calls · ${g.wins}/${g.uniqueContracts} wins</div>
+                        </div>
+                        <div class="rank-stat">
+                            <div class="rank-value">${parseFloat(g.winRate).toFixed(1)}%</div>
+                            <div class="rank-label">胜率</div>
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                list.innerHTML = data.map((c, i) => {
+                    const isFollowed = !!localData.specialAttention[c.userId];
+                    const nick = localData.userRemarks[c.userId] || c.userNick || c.userId?.slice(0, 10) || '';
+                    const groupName = localData.groupRemarks[c.groupId] || c.groupName || '';
+                    const tokenDisplay = c.tokenSymbol || c.address?.slice(0, 8) || '';
+                    const maxMult = parseFloat(c.maxMultiplier) || 1;
+                    const currMult = parseFloat(c.currentMultiplier) || 1;
+                    return `
+                    <div class="ranking-item">
+                        <div class="rank-num ${i < 3 ? 'top' + (i + 1) : ''}">${i < 3 ? ['🥇', '🥈', '🥉'][i] : '#' + (i + 1)}</div>
+                        <div class="rank-info">
+                            <div class="rank-name">${tokenDisplay}</div>
+                            <div class="rank-detail">
+                                <span onclick="openRemarkModal('${c.userId}', '${(c.userNick || '').replace(/'/g, "\\'")}')" style="cursor:pointer">${isFollowed ? '⭐ ' : ''}${nick}</span>
+                                ${groupName ? '<span style="float:right;color:#666">' + groupName + '</span>' : ''}
+                            </div>
+                        </div>
+                        <div class="rank-stat">
+                            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
+                                <div style="display:flex;align-items:center;gap:4px">
+                                    <span style="font-size:9px;color:#666">最高</span>
+                                    <span class="rank-value" style="color:${maxMult >= 2 ? '#00d4aa' : maxMult >= 1 ? '#888' : '#f44'}">x${maxMult.toFixed(2)}</span>
+                                </div>
+                                <div style="display:flex;align-items:center;gap:4px">
+                                    <span style="font-size:9px;color:#666">当前</span>
+                                    <span style="font-size:12px;font-weight:600;color:${currMult >= 2 ? '#00d4aa' : currMult >= 1 ? '#888' : '#f44'}">x${currMult.toFixed(2)}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <button class="rank-follow-btn ${isFollowed ? 'followed' : ''}" onclick="event.stopPropagation(); toggleRankFollow('${c.userId}', '${(c.userNick || '').replace(/'/g, "\\'")}')">${isFollowed ? '已关注' : '关注'}</button>
+                    </div>
+                `}).join('');
+            }
+        }
+        
+        function toggleRankFollow(userId, userNick) {
+            if (localData.specialAttention[userId]) {
+                delete localData.specialAttention[userId];
+                showToast('已取消关注', 'success');
+            } else {
+                localData.specialAttention[userId] = true;
+                showToast('已关注', 'success');
+            }
+            saveLocalData();
+            renderRankings();
+        }
+        
+        async function openGroupDetail(groupId, groupName) {
+            document.getElementById('groupDetailTitle').textContent = localData.groupRemarks[groupId] || groupName || groupId;
+            document.getElementById('groupDetailList').innerHTML = '<div style="text-align:center;padding:30px;color:#666">加载中...</div>';
+            document.getElementById('groupDetailModal').classList.add('active');
+            
+            try {
+                const r = await fetch('/api/ranking/group/' + encodeURIComponent(groupId) + '/contracts');
+                const d = await r.json();
+                if (d.code === 200 && d.data.length > 0) {
+                    document.getElementById('groupDetailList').innerHTML = d.data.map(c => {
+                        const isFollowed = !!localData.specialAttention[c.userId];
+                        const nick = localData.userRemarks[c.userId] || c.userNick || c.userId?.slice(0, 10);
+                        const mc = formatMarketCap(c.marketCap);
+                        const gain = c.initialMarketCap && c.marketCap ? (parseFloat(c.marketCap) / parseFloat(c.initialMarketCap)).toFixed(1) + 'x' : '';
+                        return `<div class="group-detail-item">
+                            <div class="group-detail-token">
+                                <span class="token-symbol">${c.tokenSymbol || c.address.slice(0, 8)}</span>
+                                <span class="chain-badge ${c.type?.toLowerCase()}">${c.chain || c.type}</span>
+                                ${gain ? '<span class="gain-badge up">' + gain + '</span>' : ''}
+                                <span class="mc-info">${mc}</span>
+                            </div>
+                            <div class="group-detail-user">
+                                <span onclick="openRemarkModal('${c.userId}', '${(c.userNick || '').replace(/'/g, "\\'")}')">${isFollowed ? '⭐ ' : ''}${nick}</span>
+                                <button class="rank-follow-btn small ${isFollowed ? 'followed' : ''}" onclick="toggleGroupDetailFollow('${c.userId}', '${(c.userNick || '').replace(/'/g, "\\'")}', '${groupId}', '${groupName}')">${isFollowed ? '已关注' : '关注'}</button>
+                            </div>
+                        </div>`;
+                    }).join('');
+                } else {
+                    document.getElementById('groupDetailList').innerHTML = '<div style="text-align:center;padding:30px;color:#666">暂无合约数据</div>';
+                }
+            } catch (e) {
+                document.getElementById('groupDetailList').innerHTML = '<div style="text-align:center;padding:30px;color:#f44">加载失败</div>';
+            }
+        }
+        
+        function toggleGroupDetailFollow(userId, userNick, groupId, groupName) {
+            toggleRankFollow(userId, userNick);
+            openGroupDetail(groupId, groupName);
+        }
+        
+        function closeGroupDetail() {
+            document.getElementById('groupDetailModal').classList.remove('active');
+        }
+
+        window.onload = async function() {
+            loadLocalData();
+            await loadBoundGroups();
+            await loadContracts();
+            connectSSE();
+            updateColumnHeaders();
+            const p = localData.jumpPlatform;
+            document.getElementById('platformText').textContent = platformLinks[p]?.name || 'GMGN';
+            const icon = document.getElementById('platformIcon');
+            icon.className = 'platform-icon ' + p; icon.textContent = p === 'gmgn' ? 'G' : (p === 'debot' ? 'D' : 'A');
+            
+            // 请求浏览器通知权限
+            requestNotificationPermission();
+            
+            // 点击页面时解锁音频（浏览器策略要求用户交互）
+            document.body.addEventListener('click', initAudio, { once: true });
+        };
+    </script>
+</body>
+</html>

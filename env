@@ -1,0 +1,22 @@
+# Server
+PORT=3000
+
+# Telegram Bot (需要填写你的 Bot Token)
+TG_BOT_TOKEN=""
+
+# Redis
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+REDIS_PASSWORD=
+REDIS_DB=0
+
+# WeChat (需要填写你的微信管理员ID)
+WX_ADMIN_IDS="wxid_9qs63o6rrlvp12"
+WX_SOURCE_PASSWORD=
+
+# AveAI Token API (需要填写 API Key)
+AVE_API_URL=https://prod.ave-api.com
+AVE_API_KEY=""
+
+# Push Service
+PUSH_SERVICE_URL=https://push.tingfeng.ai

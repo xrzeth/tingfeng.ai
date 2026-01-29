@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>微信数据源管理</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0d0d0d; color: #fff; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+        
+        .login-box { background: #1a1a1a; border: 1px solid #333; border-radius: 12px; padding: 40px; width: 400px; }
+        .login-title { font-size: 24px; text-align: center; margin-bottom: 30px; color: #07c160; }
+        .login-input { width: 100%; padding: 12px 16px; background: #111; border: 1px solid #333; border-radius: 6px; color: #fff; font-size: 14px; margin-bottom: 20px; }
+        .login-btn { width: 100%; padding: 12px; background: #07c160; border: none; border-radius: 6px; color: #fff; font-size: 14px; cursor: pointer; }
+        .login-btn:hover { background: #06ad56; }
+        .login-error { color: #ff4444; text-align: center; margin-top: 15px; font-size: 13px; display: none; }
+        
+        .main-container { display: none; width: 100%; max-width: 900px; padding: 20px; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+        .header h1 { color: #07c160; font-size: 24px; }
+        .back-btn { padding: 8px 16px; background: #333; border: none; border-radius: 6px; color: #888; font-size: 12px; cursor: pointer; text-decoration: none; }
+        .back-btn:hover { background: #444; color: #fff; }
+        
+        .source-list { margin-bottom: 30px; }
+        .source-item { background: #1a1a1a; border: 1px solid #333; border-radius: 8px; padding: 16px; margin-bottom: 12px; }
+        .source-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .source-name { font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+        .source-name .status { width: 8px; height: 8px; border-radius: 50%; }
+        .source-name .status.online { background: #07c160; box-shadow: 0 0 8px #07c160; }
+        .source-name .status.offline { background: #ff4444; }
+        .source-type { padding: 3px 8px; font-size: 10px; border-radius: 4px; }
+        .source-type.direct { background: rgba(0, 212, 170, 0.2); color: #00d4aa; }
+        .source-type.bridge { background: rgba(255, 204, 0, 0.2); color: #fc0; }
+        .source-info { font-size: 12px; color: #666; margin-bottom: 4px; }
+        .source-actions { display: flex; gap: 8px; }
+        .source-btn { padding: 6px 12px; font-size: 11px; border: none; border-radius: 4px; cursor: pointer; }
+        .source-btn.toggle { background: rgba(0, 212, 170, 0.2); color: #00d4aa; }
+        .source-btn.toggle.disabled { background: rgba(255, 68, 68, 0.2); color: #ff4444; }
+        .source-btn.delete { background: rgba(255, 68, 68, 0.2); color: #ff4444; }
+        
+        .add-form { background: #1a1a1a; border: 1px solid #333; border-radius: 8px; padding: 20px; }
+        .form-title { font-size: 16px; margin-bottom: 20px; color: #fff; }
+        .form-row { display: flex; gap: 15px; margin-bottom: 15px; }
+        .form-group { flex: 1; }
+        .form-label { font-size: 12px; color: #888; margin-bottom: 6px; display: block; }
+        .form-input { width: 100%; padding: 10px 12px; background: #111; border: 1px solid #333; border-radius: 6px; color: #fff; font-size: 13px; }
+        .form-select { width: 100%; padding: 10px 12px; background: #111; border: 1px solid #333; border-radius: 6px; color: #fff; font-size: 13px; }
+        .form-hint { font-size: 11px; color: #555; margin-top: 6px; }
+        .form-btn { padding: 10px 24px; background: #07c160; border: none; border-radius: 6px; color: #fff; font-size: 13px; cursor: pointer; }
+        .form-btn:hover { background: #06ad56; }
+        
+        .empty { text-align: center; color: #555; padding: 40px; }
+        .empty-icon { font-size: 48px; opacity: 0.3; margin-bottom: 10px; }
+        
+        .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); padding: 10px 20px; background: #333; border-radius: 6px; font-size: 13px; opacity: 0; transition: opacity 0.3s; z-index: 1000; }
+        .toast.show { opacity: 1; }
+        .toast.success { background: rgba(7, 193, 96, 0.9); }
+        .toast.error { background: rgba(255, 68, 68, 0.9); }
+        
+        .bridge-info { background: #111; border: 1px solid #333; border-radius: 6px; padding: 15px; margin-top: 20px; }
+        .bridge-info h3 { font-size: 14px; color: #fc0; margin-bottom: 10px; }
+        .bridge-info p { font-size: 12px; color: #888; margin-bottom: 8px; }
+        .bridge-info code { background: #1a1a1a; padding: 2px 6px; border-radius: 3px; color: #07c160; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <!-- 登录框 -->
+    <div class="login-box" id="loginBox">
+        <div class="login-title">🔐 微信数据源管理</div>
+        <input type="password" class="login-input" id="passwordInput" placeholder="请输入管理密码" onkeypress="if(event.key==='Enter')login()">
+        <button class="login-btn" onclick="login()">登 录</button>
+        <div class="login-error" id="loginError">密码错误</div>
+    </div>
+    
+    <!-- 主界面 -->
+    <div class="main-container" id="mainContainer">
+        <div class="header">
+            <h1>📡 微信数据源管理</h1>
+            <a href="/" class="back-btn">← 返回主页</a>
+        </div>
+        
+        <div class="source-list" id="sourceList"></div>
+        
+        <div class="add-form">
+            <div class="form-title">➕ 添加数据源</div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">数据源ID *</label>
+                    <input type="text" class="form-input" id="sourceId" placeholder="如: wx1">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">名称</label>
+                    <input type="text" class="form-input" id="sourceName" placeholder="如: 我的微信">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">连接类型 *</label>
+                    <select class="form-select" id="sourceType" onchange="toggleFields()">
+                        <option value="direct">直连 (服务器直接连接千寻)</option>
+                        <option value="bridge">桥接 (本地运行bridge.js)</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- 直连模式字段 -->
+            <div id="directFields">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">HTTP 地址 (千寻API)</label>
+                        <input type="text" class="form-input" id="httpUrl" placeholder="http://127.0.0.1:8888">
+                        <div class="form-hint">千寻框架的地址，如 http://127.0.0.1:8888 (不需要加 /wechat/httpapi)</div>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group" style="background:#111;padding:10px;border-radius:6px">
+                        <div class="form-hint" style="color:#fc0">⚠️ 回调地址设置</div>
+                        <div class="form-hint">在千寻框架中设置回调地址为: <span style="color:#07c160" id="directCallbackHint">http://服务器IP:3000/api/wx/callback?source=数据源ID</span></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 桥接模式字段 -->
+            <div id="bridgeFields" style="display:none">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">微信ID (wxid) *</label>
+                        <input type="text" class="form-input" id="bridgeWxid" placeholder="wxid_xxxxxxxxxx">
+                        <div class="form-hint">桥接客户端的微信ID，用于认证</div>
+                    </div>
+                </div>
+            </div>
+            
+            <button class="form-btn" onclick="addSource()">添加数据源</button>
+        </div>
+        
+        <div class="bridge-info">
+            <h3>📋 使用说明</h3>
+            <p><strong>方式一：直连模式</strong>（服务器能访问千寻框架）</p>
+            <p>1. 在千寻框架设置回调地址: <code id="callbackUrl">http://你的服务器IP:3000/api/wx/callback?source=数据源ID</code></p>
+            <p>2. HTTP地址填千寻的API: <code>http://千寻IP:8888/wechat/httpapi</code></p>
+            <p style="margin-top:15px"><strong>方式二：桥接模式</strong>（服务器无法访问千寻，如内网/家里电脑）</p>
+            <p>1. 下载 <code>bridge.js</code> 到本地电脑</p>
+            <p>2. 修改配置：<code>serverUrl</code> 改为服务器地址，<code>wxid</code> 改为你的微信ID</p>
+            <p>3. 在千寻框架设置回调地址指向本地bridge: <code>http://127.0.0.1:9898/wechat/callback</code></p>
+            <p>4. 运行：<code>node bridge.js</code></p>
+            <p>5. 桥接连接地址：<code id="bridgeUrl">ws://localhost:3000/bridge</code></p>
+        </div>
+    </div>
+    
+    <div class="toast" id="toast"></div>
+    
+    <script>
+        let authenticated = false;
+        
+        function showToast(msg, type = '') {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.className = 'toast show ' + type;
+            setTimeout(() => t.className = 'toast', 2000);
+        }
+        
+        async function login() {
+            const password = document.getElementById('passwordInput').value;
+            const res = await fetch('/api/wx/auth', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password })
+            });
+            const data = await res.json();
+            
+            if (data.code === 200) {
+                authenticated = true;
+                document.getElementById('loginBox').style.display = 'none';
+                document.getElementById('mainContainer').style.display = 'block';
+                loadSources();
+                
+                // 更新桥接地址
+                const host = window.location.host;
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                document.getElementById('bridgeUrl').textContent = `${protocol}//${host}/bridge`;
+            } else {
+                document.getElementById('loginError').style.display = 'block';
+                setTimeout(() => document.getElementById('loginError').style.display = 'none', 2000);
+            }
+        }
+        
+        function toggleFields() {
+            const type = document.getElementById('sourceType').value;
+            document.getElementById('directFields').style.display = type === 'direct' ? 'block' : 'none';
+            document.getElementById('bridgeFields').style.display = type === 'bridge' ? 'block' : 'none';
+        }
+        
+        async function loadSources() {
+            const res = await fetch('/api/wx/sources');
+            const data = await res.json();
+            const sources = data.code === 200 ? data.data : {};
+            const list = Object.entries(sources);
+            
+            if (!list.length) {
+                document.getElementById('sourceList').innerHTML = `
+                    <div class="empty">
+                        <div class="empty-icon">📡</div>
+                        <div>暂无数据源，请添加</div>
+                    </div>
+                `;
+                return;
+            }
+            
+            document.getElementById('sourceList').innerHTML = list.map(([id, s]) => `
+                <div class="source-item">
+                    <div class="source-header">
+                        <div class="source-name">
+                            <span class="status ${s.online ? 'online' : 'offline'}"></span>
+                            ${s.name}
+                            <span class="source-type ${s.type || 'direct'}">${s.type === 'bridge' ? '桥接' : '直连'}</span>
+                        </div>
+                        <div class="source-actions">
+                            <button class="source-btn toggle ${s.enabled ? '' : 'disabled'}" onclick="toggleSource('${id}')">${s.enabled ? '启用中' : '已禁用'}</button>
+                            <button class="source-btn delete" onclick="deleteSource('${id}')">删除</button>
+                        </div>
+                    </div>
+                    <div class="source-info">ID: ${id}</div>
+                    ${s.type === 'bridge' 
+                        ? `<div class="source-info">微信ID: ${s.bridgeWxid || '-'}</div>` 
+                        : `<div class="source-info">HTTP: ${s.httpUrl || '-'}</div>
+                           <div class="source-info">回调: http://服务器IP:3000/api/wx/callback?source=${id}</div>`
+                    }
+                    <div class="source-info">状态: ${s.online ? '🟢 在线' : '⚪ 等待回调'}</div>
+                </div>
+            `).join('');
+        }
+        
+        async function addSource() {
+            const id = document.getElementById('sourceId').value.trim();
+            const name = document.getElementById('sourceName').value.trim();
+            const type = document.getElementById('sourceType').value;
+            const httpUrl = document.getElementById('httpUrl').value.trim();
+            const bridgeWxid = document.getElementById('bridgeWxid').value.trim();
+            
+            if (!id) { showToast('请输入数据源ID', 'error'); return; }
+            if (type === 'bridge' && !bridgeWxid) { showToast('桥接模式需要填写微信ID', 'error'); return; }
+            
+            await fetch('/api/wx/sources', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id, name: name || id, type, httpUrl, bridgeWxid, enabled: true })
+            });
+            
+            document.getElementById('sourceId').value = '';
+            document.getElementById('sourceName').value = '';
+            document.getElementById('httpUrl').value = '';
+            document.getElementById('bridgeWxid').value = '';
+            
+            loadSources();
+            showToast('数据源已添加', 'success');
+        }
+        
+        async function toggleSource(id) {
+            const res = await fetch('/api/wx/sources');
+            const data = await res.json();
+            const source = data.data?.[id];
+            if (source) {
+                await fetch('/api/wx/sources', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ...source, enabled: !source.enabled })
+                });
+                loadSources();
+            }
+        }
+        
+        async function deleteSource(id) {
+            if (!confirm(`确定删除数据源 ${id} 吗？`)) return;
+            await fetch(`/api/wx/sources/${id}`, { method: 'DELETE' });
+            loadSources();
+            showToast('已删除', 'success');
+        }
+        
+        // 定时刷新
+        setInterval(() => {
+            if (authenticated) loadSources();
+        }, 5000);
+    </script>
+</body>
+</html>
