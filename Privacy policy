@@ -1,0 +1,29 @@
+# Privacy Policy for tingfeng"听风"
+
+Last updated: 2026-01-29
+
+## Data Collection
+CA Monitor does not collect, store, or transmit any personal data.
+
+The extension stores user preferences locally in the browser using `localStorage`.  
+This may include:
+- Followed or blocked contract preferences
+- Group monitoring configuration
+- Display and UI customization settings
+
+All data remains on the user's device and is never uploaded to any server.
+
+## Network Communication
+The extension communicates with https://tingfeng.ai solely to retrieve public cryptocurrency contract information.
+
+No user-generated data, browsing history, messages, or personal identifiers are transmitted.
+
+## Third Parties
+CA Monitor does not sell, share, or transfer any data to third parties.
+
+## Security
+The extension does not execute remote code and does not inject scripts into third-party websites.
+
+## Contact
+For questions or concerns, please contact:  
+📧 0xaodi9981@gmail.com
